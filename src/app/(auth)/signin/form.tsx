@@ -65,7 +65,7 @@ const TenantFform = () => {
          * remember the user session after the browser is closed.
          * @default true
          */
-        rememberMe,
+        rememberMe, // ok
       },
       {
         //callbacks
