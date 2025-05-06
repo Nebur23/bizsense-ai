@@ -1,0 +1,281 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// User & Business models
+
+model User {
+  id          String    @id @default(cuid())
+  name        String?
+  email       String    @unique
+  password    String? // Hashed
+  phone       String?
+  role        UserRole  @default(OWNER)
+  businessId  String? // Optional, for users who are not business owners
+  business    Business? @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  emailVerified Boolean
+  image         String?
+  sessions      Session[]
+  accounts      Account[]
+
+  @@map("user")
+}
+
+model Business {
+  id           String             @id @default(cuid())
+  name         String
+  type         BusinessType
+  location     String?
+  users        User[]
+  products     Product[]
+  customers    Customer[]
+  transactions Transaction[]
+  accounts     FinancialAccount[] // Add this relation
+  Budget       Budget[]
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+}
+
+ enum BusinessType {
+  FOOD_PROCESSING
+  HANDMADE_GOODS
+  AGRO_PROCESSING
+  FURNITURE_AND_WOODWORK
+  GENERAL_RETAIL
+  WHOLESALE
+  ELECTRONICS_AND_PHONE_SHOPS
+  MARKET_VENDOR
+  BARBERSHOP
+  HAIR_AND_BEAUTY_SALON
+  TAILORING_AND_FASHION
+  LAUNDRY_AND_DRYCLEANING
+  COOKING_AND_CATERING
+  PLUMBING_AND_ELECTRICAL
+  REPAIRS_AND_MAINTENANCE
+  BUILDING_MATERIALS_SHOP
+  TUTORING_SERVICES
+  VOCATIONAL_TRAINING
+  BIKE_TRANSPORT
+  TAXI_SERVICE
+  CARGO_AND_DELIVERY
+  FREELANCE_IT
+  CONSULTING
+  FINANCIAL_SERVICES
+  PHARMACY
+  TRADITIONAL_MEDICINE
+  GYM_AND_WELLNESS
+  OTHER
+}
+
+model FinancialAccount {
+  id            String               @id @default(cuid())
+  name          String // E.g., "Business Cash", "MTN Mobile Money", "Bank Account"
+  type          AccountType
+  provider      String? // E.g., "MTN", "Orange", "BICEC Bank"
+  accountNumber String? // Account number or phone number for mobile money
+  balance       Float                @default(0)
+  currency      String               @default("XAF")
+  isDefault     Boolean              @default(false)
+  businessId    String
+  business      Business             @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  transactions  AccountTransaction[]
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+}
+
+model AccountTransaction {
+  id                    String           @id @default(cuid())
+  accountId             String
+  account               FinancialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  transactionId         String
+  transaction           Transaction      @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  amount                Float // Amount for this specific account
+  // For transfers between accounts
+  isTransferSource      Boolean          @default(false)
+  isTransferDestination Boolean          @default(false)
+  createdAt             DateTime         @default(now())
+}
+
+// Financial models
+
+model Transaction {
+  id                  String                   @id @default(cuid())
+  type                TransactionType
+  amount              Float
+  description         String?
+  date                DateTime                 @default(now())
+  receiptUrl          String?
+  categoryId          String?
+  category            Category?                @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  businessId          String
+  business            Business                 @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customerId          String?
+  customer            Customer?                @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  productItems        ProductTransactionItem[]
+  accountTransactions AccountTransaction[] // Link to account transactions
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+}
+
+model Category {
+  id           String        @id @default(cuid())
+  name         String
+  description  String
+  type         CategoryType
+  transactions Transaction[]
+}
+
+// Inventory models
+
+model Product {
+  id            String                   @id @default(cuid())
+  name          String
+  description   String?
+  price         Float
+  cost          Float?
+  stockQuantity Int?
+  sku           String?
+  businessId    String
+  business      Business                 @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  transactions  ProductTransactionItem[]
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+}
+
+model ProductTransactionItem {
+  id            String      @id @default(cuid())
+  quantity      Int
+  priceAtTime   Float
+  productId     String
+  product       Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  transactionId String
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+}
+
+// Customer model
+
+model Customer {
+  id           String        @id @default(cuid())
+  name         String
+  phone        String?
+  email        String?
+  businessId   String
+  business     Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Budget {
+  id            String    @id @default(uuid())
+  amount        Decimal
+  lastAlertSent DateTime? // Track when the last alert was sent
+  businessId    String
+  business      Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+}
+
+// Enums
+
+enum UserRole {
+  OWNER
+  STAFF
+  ADMIN
+}
+
+enum TransactionType {
+  SALE // Product or service sold
+  PURCHASE // Product or inventory purchase
+  EXPENSE // Operational expense (rent, salaries)
+  REFUND // Customer refund
+  TRANSFER // Account transfer
+  LOAN_DISBURSEMENT // Loan amount received
+  LOAN_REPAYMENT // Loan repayment
+  SUBSCRIPTION_PAYMENT // Platform or 3rd party subscription
+  INVESTMENT_INFLOW // Investment received
+  INVESTMENT_OUTFLOW // Investment made elsewhere
+  TAX_PAYMENT // Payment to government
+  SALARY_PAYMENT // Employee payment
+  COMMISSION // Paid or earned
+  DONATION // Money donated or received
+  GRANT_RECEIPT // Received government/NGO grant
+  UTILITY_PAYMENT // Electricity, water, internet, etc.
+  MAINTENANCE_EXPENSE // Equipment/service maintenance
+  INSURANCE_PAYMENT // For assets, business insurance
+  REIMBURSEMENT // Refund to employees or others
+  PENALTY_OR_FINE // Government or legal penalty
+  DEPRECIATION // Periodic asset depreciation (non-cash)
+}
+
+enum CategoryType {
+  INCOME
+  EXPENSE
+  TRANSFER
+}
+
+enum AccountType {
+  CASH // Physical cash
+  MOBILE_MONEY // MTN Mobile Money, Orange Money, etc
+  BANK // Traditional bank accounts
+  CREDIT // Credit accounts
+  OTHER // Other payment methods
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String
+  createdAt DateTime
+  updatedAt DateTime
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([token])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime
+  updatedAt             DateTime
+
+  @@map("account")
+}
+
+model Verification {
+  id         String    @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime?
+  updatedAt  DateTime?
+
+  @@map("verification")
+}
